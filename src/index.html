@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>Smart Auction</title>
+
+  <!-- Bootstrap core CSS -->
+  <link href="vendor/bootstrap/css/bootstrap.css" rel="stylesheet">
+
+  <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+  <!-- Include all compiled plugins (below), or include individual files as needed -->
+  <script src="vendor/bootstrap/dist/js/bootstrap.min.js"></script>
+  <script src="vendor/truffle-contract/dist/truffle-contract.js"></script>
+  <script src="app.js"></script>
+</head>
+
+<body class="bg-light">
+
+  <!-- Navigation -->
+  <nav class="navbar shadow navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container">
+      <h3 class="text-light" onclick="App.changePage({'name': 'home'});">DApp Smart Auction</h3>
+      <div class="dropdown">
+        <a class="btn dropdown-toggle text-light" role="button" id="accountAddress" data-toggle="dropdown"
+          aria-haspopup="true" aria-expanded="false">
+          0x0..0
+        </a>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+          <a class="dropdown-item disabled" tabindex="-1" aria-disabled="true" id="account"></a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" onclick="App.changePage({'name': 'new_auction', data: 'Dutch'})">New Auction</a>
+          <a class="dropdown-item" onclick="App.changePage({'name': 'my_auction'});">My auction</a>
+          <!-- <a class="dropdown-item" onclick="App.changePage({'name': 'auction_done'});">Auction done</a> -->
+        </div>
+      </div>
+  </nav>
+
+  <!-- Title -->
+  <div class="container-fluid" style="margin-bottom: 30px; margin-top:3em">
+    <div class="row">
+      <div class="col-lg-12 text-center">
+        <h1 class="mt-5" id="title"></h1>
+      </div>
+    </div>
+  </div>
+
+  <!-- Home Page Content -->
+  <div class="container" id="content">
+  </div>
+
+  <div aria-live="polite" aria-atomic="true" style="min-height: 200px;">
+    <!-- Position it -->
+    <div style="position: absolute; top: 5em; right: 1em;" id="add_toast">
+      <!-- Then put toasts within -->
+      
+    </div>
+  </div>
+
+</body>
+
+</html>

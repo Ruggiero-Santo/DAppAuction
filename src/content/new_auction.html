@@ -1,0 +1,114 @@
+<script>
+    if (App.activeAccount.role == accountRole.AUCTIONEER)
+        $("#new_auction_content").html("Sorry, but the auctioneer can't create new auctions.");
+
+    async function deploy_new_auction() {
+        description = $("#description").val();
+        if ($("#select_form").val() == "Dutch") {
+            await createAuction("Dutch", {
+                "description": description,
+                "initial_price": $("#initial_price").val(),
+                "reserve_price": $("#reserve_price").val(),
+                "block_to_live": $("#block_to_live").val(),
+                "decay_function": $("#decay_function").val(),
+            })
+        } else {
+            await createAuction("Vickrey", {
+                "description": description,
+                "good_value": $("#good_value").val(),
+                "reserve_price": $("#reserve_price").val(),
+                "commitment_btl": $("#commitment_btl").val(),
+                "withdrawal_btl": $("#withdrawal_btl").val(),
+                "opening_btl": $("#opening_btl").val(),
+            })
+        }
+    }
+
+    async function createAuction (type_auction, data) {
+        await App.contracts.AuctionHouse.deployed().then(async (instance) => {
+            try {
+                if (type_auction == "Vickrey") {
+                    await instance.create_vickrey(
+                        data.description,
+                        data.good_value,
+                        data.reserve_price,
+                        data.commitment_btl,
+                        data.withdrawal_btl,
+                        data.opening_btl, {
+                            value: 500000000000000
+                        }
+                    )
+                } else {
+                    await instance.create_dutch(
+                        data.description,
+                        data.initial_price,
+                        data.reserve_price,
+                        data.block_to_live,
+                        data.decay_function, {
+                            value: 500000000000000
+                        }
+                    )
+                }
+            } catch (error) {
+                alert(error.message)
+                console.log(erro.message)
+            }
+        })
+        App.showToast({title: "New Auction", from: "DApp", text:"Auction created,<br> await notification from Blockchain"})
+    }
+    
+    //Create the options for the decay function with the correct addresses
+    async function render_option() {
+        $("#decay_function").append("<option value="+await decayAddress('Linear')+" selected>Linear</option>")
+        $("#decay_function").append("<option value="+await decayAddress('Sup_linear')+">Sup Linear</option>")
+    }
+
+    //I take the current address of the contracts that implement the price decay
+    async function decayAddress(_type) {
+        let temp
+        if (_type == "Linear")
+            temp = await App.contracts.Linear.deployed()
+        else
+            temp = await App.contracts.Sup_linear.deployed()
+        return temp.contract.address
+    }
+</script>
+
+<div id="new_auction_content" class="text-center">
+
+    <form>
+        <div class="form-group">
+            <label for="select_form">Auction Type</label>
+            <select class="form-control" id="select_form"
+                onchange="App.changePage({'name': 'new_auction', data: this.value})">
+                <option value="Dutch">Dutch</option>
+                <option value="Vickrey">Vickrey</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <input type="text" class="form-control" id="description" placeholder="Description">
+        </div>
+        <div id="Dutch_form">
+            <div class="form-group">
+                <input type="text" class="form-control" id="initial_price" placeholder="Initial Price">
+                <input type="text" class="form-control" id="reserve_price" placeholder="Reserve Price">
+                <input type="text" class="form-control" id="block_to_live" placeholder="Block to live of Auction">
+                <select type="text" class="form-control" id="decay_function" placeholder="Address of decay function">
+                </select>
+            </div>
+        </div>
+        <div id="Vickrey_form">
+            <div class="form-group">
+                <input type="text" class="form-control" id="good_value" placeholder="Value of good">
+                <input type="text" class="form-control" id="reserve_price" placeholder="Reserve Price">
+                <input type="text" class="form-control" id="commitment_btl" placeholder="N. block for commitment phase">
+                <input type="text" class="form-control" id="withdrawal_btl" placeholder="N. block for withdrawal phase">
+                <input type="text" class="form-control" id="opening_btl" placeholder="N. block for opening phase">
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary"
+            onclick="deploy_new_auction();App.changePage({'name': 'home'});">Create</button>
+    </form>
+
+</div>

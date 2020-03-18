@@ -1,0 +1,31 @@
+{
+  "name": "dapp-smartauction",
+  "version": "0.1.0",
+  "description": "Blockchain DAPP for SmartAuction",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "all": "parallelshell \"python ./src/throw_event.py\" \"lite-server\"",
+    "dev_p": "python ./src/throw_event.py",
+    "dev_j": "lite-server",
+    "test": "echo \"Error: no test specified\" && sexit 1"
+  },
+  "author": "ruggiero.santo@gmail.com",
+  "license": "ISC",
+  "devDependencies": {
+    "bootstrap": "4.3.1",
+    "chai": "4.1.2",
+    "chai-as-promised": "7.1.1",
+    "chai-bignumber": "2.0.2",
+    "lite-server": "2.3.0",
+    "nodemon": "1.17.3",
+    "truffle": "5.0.25",
+    "truffle-contract": "3.0.7",
+    "truffle-hdwallet-provider": "^1.0.6"
+  },
+  "dependencies": {
+    "parallelshell": "^3.0.1"
+  }
+}

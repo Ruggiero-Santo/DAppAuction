@@ -1,0 +1,56 @@
+<script>
+    table_example = `
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th scope="col">Address</th>
+                    <th scope="col">Description</th>
+                    <th scope="col"></th>
+                    <th scope="col"></th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody id="auction_table">
+            </tbody>
+        </table>
+    `
+    async function render_table() {
+        if (App.activeAccount.role == accountRole.AUCTIONEER)
+            $("#my_auction_content").html("Sorry, but the auctioneer may not participate in any auction.")
+        else {
+            $("#my_auction_content").html(table_example);
+
+            var auctions_addresses = await App.getAllAuction()
+
+            auctions_addresses.forEach(async (element) => {
+                mine = await App.contracts.AuctionHouse.deployed().then(async (instance) => {
+                    return await instance.is_mine(element)
+                })
+
+                if (mine == true) {
+                    await App.contracts.Dutch.at(element).then(async (instance) => {
+                        let auction_type = await instance.auction_type.call()
+                        let description = await instance.description.call()
+                        let current_phase = await instance.current_phase()
+                        $("#auction_table").append(`
+                            <tr>
+                                <td scope="row">
+                                        <button type="button" class="btn btn-link" onclick="App.changePage({name: 'see_auction', data: {address: '${element}', type: '${auction_type}', seller:'${App.activeAccount.address}'}})">
+                                            ${element.substring(0, 6)+"..."+element.substring(element.length - 4)}
+                                    </button>
+                                </td>
+                                <td colspan="3">${description}</td>
+                                <td>${auction_type}</td>
+                                <td>${current_phase}</td>
+                            </tr>
+                        `);
+                    })
+                }
+            });
+        }
+    }
+
+</script>
+<div id="my_auction_content" class="text-center">
+</div>

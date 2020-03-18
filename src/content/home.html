@@ -1,0 +1,46 @@
+<script defer>
+    
+    async function render_table() {
+        var auctions_addresses = await App.getAllAuction()
+        
+        auctions_addresses.forEach(async (element) => {
+            await App.contracts.Dutch.at(element).then(async (instance) => {
+                let auction_type = await instance.auction_type.call()
+                let description = await instance.description.call()
+                let seller = await instance.seller.call()
+                let current_phase = await instance.current_phase()
+                $("#auction_table").append(`
+                    <tr>
+                        <td scope="row">
+                            <button type="button" class="btn btn-link" onclick="App.changePage({name: 'see_auction', data: {address: '${element}', type: '${auction_type}', seller:'${seller}'}})">
+                                ${element.substring(0, 6)+"..."+element.substring(element.length - 4)}
+                            </button>
+                        </td>
+                        <td colspan="3">${description}</td>
+                        <td>${auction_type}</td>
+                        <td><small>${seller.substring(0, 6)+"..."+seller.substring(seller.length - 4)}</small></td>
+                        <td>${current_phase}</td>
+                    </tr>
+                `);
+            })
+        });
+    }
+
+</script>
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th scope="col">Address</th>
+            <th scope="col">Description</th>
+            <th scope="col"></th>
+            <th scope="col"></th>
+            <th scope="col">Type</th>
+            <th scope="col">Seller</th>
+            <th scope="col">Status</th>
+        </tr>
+    </thead>
+    <tbody id="auction_table">
+        <tr>
+        </tr>
+    </tbody>
+</table>

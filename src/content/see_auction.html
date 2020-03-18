@@ -1,0 +1,502 @@
+<script>
+    var address
+    var auction_type
+
+    // Displays all the information and actions that the user can perform within
+    // this page according to the stage of the contract and the role of the user.
+    async function render_see_auction(data) {
+        address = data.address
+       
+        let current_phase = ""
+        let block_to_live
+        let winner
+        // Take all the useful information and display it
+        await App.contracts.Dutch.at(address).then(async (instance) => {
+            // The use of the Dutch or Vickrey contract does not affect since
+            // the information taken is defined in the abstract contract.
+            auction_type = data.type
+
+            if (data.seller == undefined)
+                seller = await instance.seller.call()
+            else 
+                seller = data.seller
+            $("#seller").html(data.seller)
+            
+            if (data.type == undefined)
+                auction_type = await instance.auction_type.call()
+            else 
+                auction_type = data.type
+            $("#auction_type").html(auction_type)
+
+            let starting_block = await instance.starting_block.call()
+            $("#starting_block").html("" + starting_block);
+            block_to_live = await instance.block_to_live.call()
+            $("#block_to_live").html("" + block_to_live);
+            let auctioneer = await instance.auctioneer.call()
+            $("#auctioneer").html("" + auctioneer);
+            winner = await instance.winner.call()
+            $("#winner").html("" + winner);
+            let description = await instance.description.call()
+            $("#description").html("" + description);
+
+            let sold_price = await instance.sold_price.call()
+            $("#sold_price").html("" + sold_price);
+            let reserve_price = await instance.reserve_price.call()
+            $("#reserve_price").html("" + reserve_price);
+
+            let bail_seller = await instance.bail_seller.call()
+            $("#bail_seller").html("" + bail_seller);
+            let bail_winner = await instance.bail_winner.call()
+            $("#bail_winner").html("" + bail_winner);
+            let min_bail = await instance.get_bail_amount()
+            $("#min_bail").html("" + min_bail);
+            current_phase = await instance.current_phase()
+            $("#current_phase").html("" + current_phase);
+
+        });
+
+        // I'll get the specific info 
+        if (auction_type == "Dutch") {
+            App.contracts.Dutch.at(address).then(async (instance) => {
+                let initial_price = await instance.initial_price.call()
+                let decay_function = await instance.decay_function.call()
+
+                let current_price = ""
+                if ("" + current_phase == "Commitment phase")
+                    current_price = await instance.current_price()
+                else if ("" + current_phase == "Grace period")
+                    current_price = "Still " + initial_price + " until Commitment phase"
+                else if ("" + current_phase == "Auction is over")
+                    current_price = "No longer available"
+
+                $("#info_typed_auction").append(`
+                    <li class="list-group-item d-flex">
+                        <div class="col-md-6">
+                            <div class="row w-100 text-muted">
+                                <small>Initial Price</small>
+                            </div>
+                            <div class="row" style="margin-left:1rem" id="initial_price">
+                                ${initial_price}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row w-100 text-muted">
+                                <small>Current Price</small>
+                            </div>
+                            <div class="row" style="margin-left:1rem" id="current_price">
+                                ${current_price}
+                            </div>
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex">
+                        <div class="col">
+                            <div class="row text-muted">
+                                <small>Address Decay Contract</small>
+                            </div>
+                            <div class="row" style="margin-left:1rem" id="decay_function">
+                                ${decay_function}
+                            </div>
+                        </div>
+                    </li>
+                `)
+            });
+        } else {
+            App.contracts.Vickrey.at(address).then(async (instance) => {
+                let withdrawal_btl = await instance.withdrawal_btl.call()
+                let commitment_btl = await instance.commitment_btl.call()
+
+                let opening_blt = block_to_live - withdrawal_btl
+                withdrawal_btl -= commitment_btl
+
+                $("#info_typed_auction").append(`
+                    <li class="list-group-item d-flex">
+                        <div class="col-md-4">
+                            <div class="row w-100 text-muted">
+                                <small>Commitment BTL</small>
+                            </div>
+                            <div class="row" style="margin-left:1rem" id="commitment_btl">
+                                ${commitment_btl}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="row w-100 text-muted">
+                                <small>Withdrawal BTL</small>
+                            </div>
+                            <div class="row" style="margin-left:1rem" id="withdrawal_btl">
+                                ${withdrawal_btl}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="row w-100 text-muted">
+                                <small>Opening BLT</small>
+                            </div>
+                            <div class="row" style="margin-left:1rem" id="opening_blt">
+                                ${opening_blt}
+                            </div>
+                        </div>
+                    </li>
+                `)
+            });
+        }
+        //Enter the new event into the table in real time.
+        //I use the Vickrey contract for events because the generic events are shared and vickrey has an extra change of status
+        App.contracts.Vickrey.at(address).allEvents({
+                fromBlock: 0
+            }, async (error, event) => {
+                insert_row(event)
+                console.log("see_auction_event", event)
+            })
+
+        //Possible actions the user can do (both Dutch and Vikrey)
+        var action_content = ""
+        if (current_phase == "Grace period")
+            action_content = "You have to wait until the auction starts to do something"
+        else {
+            await App.contracts.Dutch.at(address).then(async (instance) => {
+                let winner_sended_money = await instance.winner_sended_money.call()
+                let seller_shipped_good = await instance.seller_shipped_good.call()
+                let winner_recived_good = await instance.winner_recived_good.call()
+                let shipped_good_have_problem = await instance.shipped_good_have_problem.call()
+                let finalized = await instance.finalized.call()
+
+                if (App.activeAccount.role == accountRole.AUCTIONEER) {
+                    addFinalizeButton(address) //The astator can only finalize the auction
+                } else if (App.activeAccount.address == seller) {
+                    //Actions that the seller can do according to the status of the auction
+                    if (current_phase == "Auction is over" && winner_sended_money) {
+                        if (!seller_shipped_good) {
+                            action_content = `
+                                <input type="text" id="shipp_code" class="form-control no-border w-100" placeholder="Shippeng Code for tracking">
+                                <button onClick="do_action('notify_shipping')" type="button" class="btn btn-outline-primary">Notify Good Shipped</button>
+                            `
+                        }
+                    } else if (current_phase == "Commitment phase")
+                        action_content = "You're the seller, there's nothing you can do until the auction's over."
+                    addFinalizeButton(address)
+                } else if (App.activeAccount.address == winner) {
+                    // Actions that the winner can do based on the status of the auction
+                    if (current_phase == "Auction is over") {
+                        if (!winner_sended_money) {
+                            action_content = `
+                                <input type="number" id="money" class="form-control no-border w-100" placeholder="Wei Amount">
+                                <button onClick="do_action('send_money')" type="button" class="btn btn-outline-primary">Send Money</button>
+                            `
+                        } else if (seller_shipped_good && !winner_recived_good) {
+                            action_content = `
+                                <input type="text" id="problem" class="form-control no-border w-100" placeholder="If there are problems write it otherwise leave blank">
+                                <button onClick="do_action('notify_good_recived')" type="button" class="btn btn-outline-primary">Notify Good Arrived</button>
+                            `
+                        }
+                    }
+                    addFinalizeButton(address)
+                } else {
+                    // Actions that all the other users can do according to the type and state of the auction
+                    if (auction_type == "Dutch") {
+                        if (current_phase == "Commitment phase") {
+                            action_content = `
+                                <input type="number" id="money" class="form-control no-border w-100" placeholder="Wei Amount">
+                                <button onClick="do_action('send_money')" type="button" class="btn btn-outline-primary">Commit Dutch</button>
+                            `
+                        }
+                    } else {
+                        if (current_phase == "Commitment phase") {
+                            action_content = `
+                                <div>
+                                    <input type="number" id="amount" class="col-4 form-control" placeholder="Amount">
+                                    <input type="text" id="nonce" class="col-4 form-control" placeholder="Nonce">
+                                    <button type="button" class="btn btn-success" onclick="compute_sha()">Compute SHA</button>
+                                </div>
+                                <input type="text" id="sha" class="form-control no-border w-100" placeholder="Sha of amount and nonce">
+                                <button onClick="do_action('commit_vick')" type="button" class="btn btn-outline-primary">Commit Vickrey</button>
+                            `
+                        } else if (current_phase == "Withdrawal phase") {
+                            action_content = `
+                                <button onClick="do_action('withdrawal')" type="button" class="btn btn-outline-primary">Withdrawal Vickrey</button>
+                            `
+                        } else if (current_phase == "Opening phase") {
+                            action_content = `
+                                <input type="number" id="amount" class="form-control no-border w-100" placeholder="Wei amount">
+                                <input type="text" id="nonce" class="form-control no-border w-100" placeholder="nonce">
+                                <button onClick="do_action('opening')" type="button" class="btn btn-outline-primary">Opening Vickrey</button>
+                            `
+                        }
+                    }
+                    if (current_phase == "Auction is over" && !finalized) {
+                        action_content = "The auction is over, there are no more executable actions for you."
+                    }
+                }
+                if (current_phase == "Auction is over" && finalized) {
+                    action_content = "The auction is completely finished, there are no more executable actions."
+                }
+
+                // Add the end button according to the situation of the auction
+                function addFinalizeButton() {
+                    if (current_phase == "Auction is over" && !finalized) {
+                        if (shipped_good_have_problem)
+                            if (App.activeAccount.role == accountRole.AUCTIONEER) {
+                                action_content += `
+                                    <button onClick="do_action('finalize')" type="button" class="btn btn-outline-success">Finalize Auction</button>
+                                `
+                            } else {
+                                action_content += `
+                                    <button type="button" class="btn btn-outline-success" disabled>Finalize Auction</button>
+                                    <small>Shipped good have problem so only auctioneer can finalize auction</small>
+                                `
+                            }
+                        else {
+                            action_content += `
+                                <button onClick="do_action('finalize')" type="button" class="btn btn-outline-success">Finalize Auction</button>
+                            `
+                        }
+                    }
+                }
+            })
+        }
+        $("#action_can").html(action_content)
+
+    }
+
+    async function do_action(action) {
+        switch (action) {
+            case "finalize":
+                App.contracts.Dutch.at(address).then(async (instance) => {
+                    try {
+                        instance.finalize()
+                    } catch (error) {
+                        alert(error.message)
+                        console.log(error.message)
+                    }
+                })
+                break;
+            case "notify_shipping":
+                App.contracts.Dutch.at(address).then(async (instance) => {
+                    num = $("#shipp_code").val()
+                    bail = await instance.get_bail_amount()
+                    instance.good_sended(num, {
+                        value: bail
+                    })
+                })
+                break;
+            case "send_money":
+                App.contracts.Dutch.at(address).then(async (instance) => {
+                    amount = await $("#money").val()
+                    try {
+                        instance.commit_bid({
+                            value: amount
+                        })
+                    } catch (error) {
+                        alert(error.message)
+                        console.log(error.message)
+                    }
+                })
+                break;
+            case "notify_good_recived":
+                App.contracts.Dutch.at(address).then(async (instance) => {
+                    desc = $("#problem").val()
+                    bail = await instance.get_bail_amount()
+                    if (desc != "") {
+                        instance.good_recived(true, desc, {
+                            value: bail
+                        })
+                    } else
+                        instance.good_recived(false)
+                })
+                break;
+            case "commit_vick":
+                App.contracts.Vickrey.at(address).then(async (instance) => {
+                    sha = $("#sha").val()
+                    deposit = await instance.get_deposit_amount()
+                    instance.submit_bid(sha, {
+                            value: deposit
+                        })
+                })
+                break;
+            case "withdrawal":
+                App.contracts.Vickrey.at(address).then(async (instance) => {
+                    instance.withdrawal()
+                })
+                break;
+            case "opening":
+                App.contracts.Vickrey.at(address).then(async (instance) => {
+                    amount = $("#amount").val()
+                    nonce = $("#nonce").val()
+                    instance.opening_bid(amount, nonce)
+                })
+                break;
+            default:
+                break;
+        }
+
+    }
+
+    function insert_row(event) {
+        $("#auction_table").append(`
+            <tr>
+                <th>${event.event}</th>
+                <th>${event.blockNumber}</th>
+            </tr>
+        `)
+    }
+
+    //Calculate the sha3 starting from the values entered by the user and then insert it in the field
+    function compute_sha() {
+        amount = $("#amount").val()
+        nonce = $("#nonce").val()
+        $("#sha").val(web3.sha3(amount, nonce))
+    }
+</script>
+<div>
+    <div class="row text-center mb-3">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item align-items-center d-flex justify-content-between">
+                            <h5 class="mb-1" id="auction_type">Dutch</h5>
+                            <span class="badge badge-primary badge-pill" id="current_phase">Commitment</span>
+                        </li>
+                        <li class="list-group-item d-flex">
+                            <div class="col-md-6">
+                                <div class="row w-100 text-muted">
+                                    <small>Starting Block</small>
+                                </div>
+                                <div class="row" style="margin-left:0.5rem" id="starting_block">
+                                    000
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="row w-100 text-muted">
+                                    <small>Block to Live</small>
+                                </div>
+                                <div class="row" style="margin-left:0.5rem" id="block_to_live">
+                                    000
+                                </div>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex">
+                            <div class="col">
+                                <div class="row w-100 text-muted">
+                                    <small>Auctioneer</small>
+                                </div>
+                                <div class="row">
+                                    <small id="auctioneer">0x0000000000000000000000000000000000000000</small>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex">
+                            <div class="col">
+                                <div class="row w-100 text-muted">
+                                    <small>Seller</small>
+                                </div>
+                                <div class="row">
+                                    <small id="seller">0x0000000000000000000000000000000000000000</small>
+                                </div>
+                            </div>
+
+                        </li>
+                        <li class="list-group-item d-flex">
+                            <div class="col">
+                                <div class="row w-100 text-muted">
+                                    <small>Winner</small>
+                                </div>
+                                <div class="row">
+                                    <small id="winner">0x0000000000000000000000000000000000000000</small>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-body">
+                    <ul class="list-group list-group-flush h-100" id="info_typed_auction">
+                        <li class="list-group-item d-flex">
+                            <div class="col">
+                                <div class="row text-muted">
+                                    <h5>Description</h5>
+                                </div>
+                                <div class="row" style="margin-left:1rem" id="description">
+                                    .
+                                </div>
+
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex">
+                            <div class="col-md-6">
+                                <div class="row w-100 text-muted">
+                                    <small>Sold Price</small>
+                                </div>
+                                <div class="row" style="margin-left:1rem" id="sold_price">
+                                    000
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="row w-100 text-muted">
+                                    <small>Reserve Price</small>
+                                </div>
+                                <div class="row" style="margin-left:1rem" id="reserve_price">
+                                    000
+                                </div>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex">
+                            <div class="col-md-4">
+                                <div class="row w-100 text-muted">
+                                    <small>Min Bail (see when is over)</small>
+                                </div>
+                                <div class="row" style="margin-left:1rem" id="min_bail">
+                                    000
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="row w-100 text-muted">
+                                    <small>Bail sended by Seller</small>
+                                </div>
+                                <div class="row" style="margin-left:1rem" id="bail_seller">
+                                    000
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="row w-100 text-muted">
+                                    <small>Bail sended by Winner</small>
+                                </div>
+                                <div class="row" style="margin-left:1rem" id="bail_winner">
+                                    000
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row text-center mb-3">
+        <div class="col-md-7">
+            <div class="card h-100">
+                <div class="card-body" id="action_can">
+
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th scope="col">Event name</th>
+                                <th scope="col">Block</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auction_table">
+                            <!-- mettere gli eventi qui -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
